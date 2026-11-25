@@ -46,6 +46,8 @@ h1{margin:0;font-family:var(--font-display);font-size:28px;line-height:1.2}
 h3{margin:0;font-size:13px}
 #panel p{margin:0;overflow-wrap:anywhere}
 .body{white-space:pre-wrap}
+#panel a{color:#1A55B8;text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}
+#panel a:hover{color:#0F3A85}
 .row{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .chip{align-self:flex-start;font-size:12px;font-weight:700;padding:1px 10px;border:1.5px solid var(--ink);border-radius:12px}
 .link{min-height:44px;padding:0 10px;border:0;background:transparent;font-weight:700}
@@ -440,6 +442,25 @@ function buildTags(){
 
 /* ---------- 打開的主題面板 ---------- */
 function el(tag,cls,text){ var e=document.createElement(tag); if(cls) e.className=cls; if(text!==undefined) e.textContent=text; return e; }
+
+/* 把文字中的網址變成可以點的連結(不用 innerHTML,沒有 XSS 風險) */
+var URL_RE=/https?:\/\/[^\s<>"'\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]+/g;
+function linkify(parent,text){
+  var last=0,m; URL_RE.lastIndex=0;
+  while((m=URL_RE.exec(text))){
+    var url=m[0], trail='', tm=url.match(/[.,;:!?)\]]+$/);
+    if(tm){ trail=tm[0]; url=url.slice(0,-trail.length); }
+    if(m.index>last) parent.appendChild(document.createTextNode(text.slice(last,m.index)));
+    var a=document.createElement('a');
+    a.href=url; a.textContent=url; a.target='_blank'; a.rel='noopener noreferrer';
+    parent.appendChild(a);
+    if(trail) parent.appendChild(document.createTextNode(trail));
+    last=m.index+m[0].length;
+  }
+  if(last<text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+  return parent;
+}
+
 var FIELD={title:'標題',body:'內容',tag_id:'標籤',due_enabled:'到期日倒數',due_at:'到期時間',read_confirm_enabled:'全家已讀確認',name:'名稱',color:'顏色'};
 function logVal(field,v){
   if(field==='tag_id') return tagOf(v).name;
@@ -464,7 +485,7 @@ function render(focusInput){
   var btns=el('span'); var ed=el('button','link','編輯'); ed.type='button'; ed.addEventListener('click',function(){ openForm(t); }); btns.appendChild(ed);
   var x=el('button','link close','收起來'); x.type='button'; x.addEventListener('click',closePanel); btns.appendChild(x); top.appendChild(btns); panel.appendChild(top);
   panel.appendChild(el('h2',null,t.title)); panel.appendChild(el('p','meta',memberName(t.author_id)+' · '+fmtTime(t.created_at)));
-  if(t.body) panel.appendChild(el('p','body',t.body));
+  if(t.body){ var bp=el('p','body'); linkify(bp,t.body); panel.appendChild(bp); }
   var due=dueInfo(t);
   if(due||t.read_confirm_enabled){
     var s=el('div','sec'); s.appendChild(el('h3',null,'這個主題的提醒'));
@@ -487,7 +508,7 @@ function render(focusInput){
   if(!d) m.appendChild(el('p','meta','讀取中…'));
   else d.comments.forEach(function(cm){
     var who=member(cm.author_id), p=el('p','cm'); p.style.background=color(who&&who.color,'#FFF1B8');
-    p.appendChild(el('strong',null,memberName(cm.author_id)+' ')); p.appendChild(document.createTextNode(cm.body+' ')); p.appendChild(el('small',null,fmtTime(cm.created_at))); m.appendChild(p);
+    p.appendChild(el('strong',null,memberName(cm.author_id)+' ')); p.appendChild(linkify(el('span'),cm.body)); p.appendChild(document.createTextNode(' ')); p.appendChild(el('small',null,fmtTime(cm.created_at))); m.appendChild(p);
   });
   var f=el('form','line'), lab=el('label','sr','留言內容'); lab.htmlFor='cm-input';
   var inp=el('input'); inp.id='cm-input'; inp.type='text'; inp.placeholder='留一句…'; inp.autocomplete='off'; inp.maxLength=500; inp.value=keep;
